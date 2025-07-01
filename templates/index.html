@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block title %}WalletKeeper - TX Hash 이상 탐지{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <!-- 헤더 섹션 -->
+        <div class="text-center mb-5">
+            <h1 class="display-5 fw-bold text-primary">
+                <i class="fas fa-search me-3"></i>
+                트랜잭션 이상 탐지
+            </h1>
+            <p class="lead">TX Hash를 입력하면 AI가 자동으로 이상 여부를 분석합니다</p>
+        </div>
+
+        <!-- 분석 폼 -->
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-microscope me-2"></i>
+                    트랜잭션 분석
+                </h5>
+            </div>
+            <div class="card-body p-4">
+                <form action="/analyze-form" method="post" id="analysisForm">
+                    <!-- TX Hash 입력 -->
+                    <div class="mb-3">
+                        <label for="tx_hash" class="form-label">
+                            <i class="fas fa-hashtag me-1"></i>
+                            트랜잭션 해시 (TX Hash)
+                        </label>
+                        <input 
+                            type="text" 
+                            class="form-control form-control-lg" 
+                            id="tx_hash" 
+                            name="tx_hash" 
+                            placeholder="0x..." 
+                            required
+                            pattern="^0x[a-fA-F0-9]{64}$"
+                        >
+                        <div class="form-text">
+                            66자리 16진수 문자열 (0x로 시작)
+                        </div>
+                    </div>
+
+                    <!-- 체인 선택 -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="chain_id" class="form-label">
+                                <i class="fas fa-link me-1"></i>
+                                블록체인
+                            </label>
+                            <select class="form-select" id="chain_id" name="chain_id">
+                                <option value="1" selected>Ethereum Mainnet</option>
+                                <option value="137">Polygon</option>
+                                <option value="56">BSC (Binance Smart Chain)</option>
+                                <option value="42161">Arbitrum One</option>
+                            </select>
+                        </div>
+                        
+                        <!-- 위험도 점수 (선택사항) -->
+                        <div class="col-md-6">
+                            <label for="risk_score" class="form-label">
+                                <i class="fas fa-exclamation-triangle me-1"></i>
+                                위험도 점수 (선택사항)
+                            </label>
+                            <input 
+                                type="number" 
+                                class="form-control" 
+                                id="risk_score" 
+                                name="risk_score" 
+                                min="0" 
+                                max="1" 
+                                step="0.01" 
+                                placeholder="자동 추정"
+                            >
+                            <div class="form-text">
+                                0.0 (안전) ~ 1.0 (위험), 비워두면 자동 추정
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 분석 버튼 -->
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg" id="analyzeBtn">
+                            <i class="fas fa-brain me-2"></i>
+                            AI 이상 탐지 분석
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 빠른 예시 -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-lightning-bolt me-2"></i>
+                    빠른 테스트
+                </h6>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">아래 예시 TX Hash로 바로 테스트해보세요:</p>
+                <div class="row">
+                    <div class="col-md-6 mb-2">
+                        <button class="btn btn-outline-secondary btn-sm w-100 example-btn" 
+                                data-tx="0x5c504ed432cb51138bcf09aa5e8a410dd4a1e204ef84bfed1be16dfba1b22060"
+                                data-chain="1">
+                            <i class="fas fa-check-circle me-1 text-success"></i>
+                            정상 트랜잭션 예시
+                        </button>
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <button class="btn btn-outline-secondary btn-sm w-100 example-btn"
+                                data-tx="0xa9059cbb2ab09eb219583f4a59a5d0623ade346d962bcd4e46b11da047c9049b"
+                                data-chain="1">
+                            <i class="fas fa-exclamation-circle me-1 text-warning"></i>
+                            고액 트랜잭션 예시
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 기능 설명 -->
+        <div class="row mt-5">
+            <div class="col-md-4 text-center mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <i class="fas fa-robot fa-3x text-primary mb-3"></i>
+                        <h5>AI 자동 분석</h5>
+                        <p class="text-muted">딥러닝 Autoencoder 모델로 이상 패턴 자동 탐지</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 text-center mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <i class="fas fa-download fa-3x text-success mb-3"></i>
+                        <h5>자동 데이터 추출</h5>
+                        <p class="text-muted">TX Hash에서 7개 필드를 자동으로 추출 및 분석</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 text-center mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <i class="fas fa-network-wired fa-3x text-info mb-3"></i>
+                        <h5>다중 체인 지원</h5>
+                        <p class="text-muted">Ethereum, Polygon, BSC, Arbitrum 지원</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 로딩 모달 -->
+<div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center p-5">
+                <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
+                <h5>AI가 트랜잭션을 분석 중입니다...</h5>
+                <p class="text-muted">온체인 데이터를 수집하고 이상 여부를 판단하고 있습니다.</p>
+                <div class="progress">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         style="width: 100%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('analysisForm');
+    const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    
+    // 폼 제출 시 로딩 표시
+    form.addEventListener('submit', function() {
+        loadingModal.show();
+    });
+    
+    // 예시 버튼 클릭 처리
+    document.querySelectorAll('.example-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.getElementById('tx_hash').value = this.dataset.tx;
+            document.getElementById('chain_id').value = this.dataset.chain;
+        });
+    });
+    
+    // TX Hash 입력 검증
+    document.getElementById('tx_hash').addEventListener('input', function() {
+        const value = this.value;
+        const isValid = /^0x[a-fA-F0-9]{64}$/.test(value);
+        
+        if (value && !isValid) {
+            this.classList.add('is-invalid');
+        } else {
+            this.classList.remove('is-invalid');
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}배치 분석 - WalletKeeper{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="text-center mb-4">
+            <h2>
+                <i class="fas fa-list me-2"></i>
+                배치 트랜잭션 분석
+            </h2>
+            <p class="lead">여러 TX Hash를 한 번에 분석합니다 (최대 10개)</p>
+        </div>
+
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">TX Hash 목록 입력</h5>
+            </div>
+            <div class="card-body">
+                <form id="batchForm">
+                    <div class="mb-3">
+                        <label for="tx_list" class="form-label">TX Hash 목록 (한 줄에 하나씩)</label>
+                        <textarea 
+                            class="form-control" 
+                            id="tx_list" 
+                            rows="8" 
+                            placeholder="0x5c504ed432cb51138bcf09aa5e8a410dd4a1e204ef84bfed1be16dfba1b22060
+0xa9059cbb2ab09eb219583f4a59a5d0623ade346d962bcd4e46b11da047c9049b
+..."></textarea>
+                        <div class="form-text">
+                            각 줄에 하나의 TX Hash를 입력하세요. 최대 10개까지 가능합니다.
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="batch_chain_id" class="form-label">블록체인</label>
+                        <select class="form-select" id="batch_chain_id">
+                            <option value="1" selected>Ethereum Mainnet</option>
+                            <option value="137">Polygon</option>
+                            <option value="56">BSC</option>
+                            <option value="42161">Arbitrum One</option>
+                        </select>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-play me-2"></i>
+                            배치 분석 시작
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+       <!-- 결과 영역 -->
+        <div id="results" class="mt-4" style="display: none;">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>
+                        배치 분석 결과
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="summary" class="mb-4"></div>
+                    <div id="details"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 로딩 상태 -->
+        <div id="loading" class="text-center mt-4" style="display: none;">
+            <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
+            <h5 class="mt-3">배치 분석 진행 중...</h5>
+            <div class="progress mt-3">
+                <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%"></div>
+            </div>
+            <p id="progress-text" class="mt-2">0 / 0 완료</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('batchForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const txList = document.getElementById('tx_list').value.trim();
+    const chainId = parseInt(document.getElementById('batch_chain_id').value);
+    
+    if (!txList) {
+        alert('TX Hash를 입력해주세요.');
+        return;
+    }
+    
+    const txHashes = txList.split('\n')
+        .map(tx => tx.trim())
+        .filter(tx => tx.length > 0);
+    
+    if (txHashes.length === 0) {
+        alert('유효한 TX Hash를 입력해주세요.');
+        return;
+    }
+    
+    if (txHashes.length > 10) {
+        alert('최대 10개까지만 분석 가능합니다.');
+        return;
+    }
+    
+    // 로딩 표시
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('results').style.display = 'none';
+    
+    try {
+        const response = await fetch('/api/batch-analyze', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                tx_hashes: txHashes,
+                chain_id: chainId
+            })
+        });
+        
+        const data = await response.json();
+        
+        // 결과 표시
+        displayResults(data);
+        
+    } catch (error) {
+        alert('분석 중 오류가 발생했습니다: ' + error.message);
+    } finally {
+        document.getElementById('loading').style.display = 'none';
+    }
+});
+
+function displayResults(data) {
+    const results = data.results;
+    const total = data.total;
+    
+    // 요약 정보
+    const successful = results.filter(r => r.success).length;
+    const anomalies = results.filter(r => r.success && r.summary.is_anomaly).length;
+    
+    document.getElementById('summary').innerHTML = `
+        <div class="row text-center">
+            <div class="col-md-3">
+                <h4>${total}</h4>
+                <p class="text-muted">총 트랜잭션</p>
+            </div>
+            <div class="col-md-3">
+                <h4 class="text-success">${successful}</h4>
+                <p class="text-muted">분석 성공</p>
+            </div>
+            <div class="col-md-3">
+                <h4 class="text-danger">${anomalies}</h4>
+                <p class="text-muted">이상 탐지</p>
+            </div>
+            <div class="col-md-3">
+                <h4 class="text-info">${(anomalies/successful*100).toFixed(1)}%</h4>
+                <p class="text-muted">이상 비율</p>
+            </div>
+        </div>
+    `;
+    
+    // 상세 결과
+    let detailsHtml = '<div class="table-responsive"><table class="table table-striped"><thead><tr><th>TX Hash</th><th>상태</th><th>위험도</th><th>MSE 점수</th></tr></thead><tbody>';
+    
+    results.forEach(result => {
+        if (result.success) {
+            const statusBadge = result.summary.is_anomaly ? 
+                '<span class="badge bg-danger">이상</span>' : 
+                '<span class="badge bg-success">정상</span>';
+            
+            detailsHtml += `
+                <tr>
+                    <td><code>${result.tx_hash.substring(0, 10)}...</code></td>
+                    <td>${statusBadge}</td>
+                    <td><span class="badge bg-${result.summary.risk_level === 'HIGH' ? 'danger' : result.summary.risk_level === 'MEDIUM' ? 'warning' : 'success'}">${result.summary.risk_level}</span></td>
+                    <td>${result.summary.mse_score.toFixed(6)}</td>
+                </tr>
+            `;
+        } else {
+            detailsHtml += `
+                <tr>
+                    <td><code>${result.tx_hash.substring(0, 10)}...</code></td>
+                    <td><span class="badge bg-secondary">실패</span></td>
+                    <td>-</td>
+                    <td>-</td>
+                </tr>
+            `;
+        }
+    });
+    
+    detailsHtml += '</tbody></table></div>';
+    document.getElementById('details').innerHTML = detailsHtml;
+    
+    document.getElementById('results').style.display = 'block';
+}
+</script>
+{% endblock %}
